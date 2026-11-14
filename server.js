@@ -6,7 +6,6 @@ const express = require("express");
 const { rateLimit } = require("express-rate-limit");
 const { applicationDefault, getApps, initializeApp } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-const { getStorage } = require("firebase-admin/storage");
 const helmet = require("helmet");
 const multer = require("multer");
 
@@ -22,14 +21,11 @@ const allowedCategories = new Set([
 ]);
 const allowedStatuses = new Set(["Recibida", "En proceso", "Resuelta"]);
 const maxPhotoBytes = 5 * 1024 * 1024;
-const firebaseConfigured = Boolean(
-  process.env.FIREBASE_PROJECT_ID &&
-    process.env.FIREBASE_STORAGE_BUCKET &&
-    process.env.GOOGLE_APPLICATION_CREDENTIALS,
-);
+const maxStoredPhotoBytes = 600 * 1024;
+const maxThumbnailBytes = 24 * 1024;
+const firebaseConfigured = Boolean(process.env.FIREBASE_PROJECT_ID && process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 let db;
-let bucket;
 
 if (firebaseConfigured) {
   const firebaseApp =
@@ -37,10 +33,8 @@ if (firebaseConfigured) {
     initializeApp({
       credential: applicationDefault(),
       projectId: process.env.FIREBASE_PROJECT_ID,
-      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
     });
   db = getFirestore(firebaseApp);
-  bucket = getStorage(firebaseApp).bucket();
 } else {
   console.warn(
     "Firebase no está configurado. La interfaz estará disponible, pero la API de reportes responderá 503. Completa las variables de .env.",
@@ -53,7 +47,9 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        "img-src": ["'self'", "blob:", "https:"],
+        "style-src": ["'self'", "https://fonts.googleapis.com"],
+        "font-src": ["'self'", "https://fonts.gstatic.com"],
+        "img-src": ["'self'", "blob:", "data:"],
       },
     },
   }),
@@ -63,7 +59,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: maxPhotoBytes, files: 1 },
+  limits: { fileSize: maxPhotoBytes, files: 2, fieldSize: 10 * 1024 },
   fileFilter: (_request, file, callback) => {
     const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
     if (!allowedTypes.has(file.mimetype)) {
@@ -119,16 +115,12 @@ function toIsoString(value) {
   return value && typeof value.toDate === "function" ? value.toDate().toISOString() : null;
 }
 
-async function toReport(document) {
+function toReport(document) {
   const report = document.data();
-  let photoUrl = null;
-
-  if (report.photoPath) {
-    [photoUrl] = await bucket.file(report.photoPath).getSignedUrl({
-      action: "read",
-      expires: Date.now() + 60 * 60 * 1000,
-    });
-  }
+  const thumbnail =
+    Buffer.isBuffer(report.thumbnailData) || report.thumbnailData instanceof Uint8Array
+      ? Buffer.from(report.thumbnailData).toString("base64")
+      : "";
 
   return {
     id: document.id,
@@ -137,7 +129,7 @@ async function toReport(document) {
     location: report.location,
     description: report.description,
     status: report.status,
-    photoUrl,
+    photoUrl: thumbnail ? `data:${report.thumbnailContentType};base64,${thumbnail}` : null,
     createdAt: toIsoString(report.createdAt),
     updatedAt: toIsoString(report.updatedAt),
   };
@@ -147,14 +139,18 @@ app.post(
   "/api/reports",
   submissionLimiter,
   requireFirebase,
-  upload.single("photo"),
+  upload.fields([
+    { name: "photo", maxCount: 1 },
+    { name: "thumbnail", maxCount: 1 },
+  ]),
   async (request, response, next) => {
-    let photoPath;
     try {
       const name = cleanText(request.body.name, 100);
       const category = cleanText(request.body.category, 60);
       const location = cleanText(request.body.location, 160);
       const description = cleanText(request.body.description, 2000);
+      const photo = request.files?.photo?.[0];
+      const thumbnail = request.files?.thumbnail?.[0];
 
       if (!name || !location || description.length < 15 || !allowedCategories.has(category)) {
         response.status(400).json({
@@ -162,25 +158,25 @@ app.post(
         });
         return;
       }
-      if (!request.file) {
+      if (!photo || !thumbnail) {
         response.status(400).json({ error: "Adjunta una fotografía relacionada con el reporte." });
+        return;
+      }
+      if (photo.size > maxStoredPhotoBytes || thumbnail.size > maxThumbnailBytes) {
+        response.status(400).json({ error: "No se pudo optimizar la fotografía. Elige una imagen diferente." });
         return;
       }
 
       const reportRef = db.collection("citizen_reports").doc();
-      const extension = request.file.mimetype.split("/")[1].replace("jpeg", "jpg");
-      photoPath = `reports/${reportRef.id}/${crypto.randomUUID()}.${extension}`;
-      await bucket.file(photoPath).save(request.file.buffer, {
-        resumable: false,
-        metadata: { contentType: request.file.mimetype },
-      });
-
       await reportRef.set({
         name,
         category,
         location,
         description,
-        photoPath,
+        photoData: photo.buffer,
+        photoContentType: photo.mimetype,
+        thumbnailData: thumbnail.buffer,
+        thumbnailContentType: thumbnail.mimetype,
         status: "Recibida",
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -188,11 +184,6 @@ app.post(
 
       response.status(201).json({ id: reportRef.id, message: "Tu reporte fue registrado correctamente." });
     } catch (error) {
-      if (photoPath) {
-        await bucket.file(photoPath).delete({ ignoreNotFound: true }).catch((cleanupError) => {
-          console.error("No se pudo limpiar la fotografía tras un error al guardar el reporte:", cleanupError);
-        });
-      }
       next(error);
     }
   },
@@ -203,7 +194,7 @@ app.get("/api/reports", requireFirebase, requireAdmin, async (request, response,
     const snapshot = await db
       .collection("citizen_reports")
       .orderBy("createdAt", "desc")
-      .limit(200)
+      .limit(100)
       .get();
     const reports = await Promise.all(snapshot.docs.map(toReport));
     response.json({ reports });
@@ -235,8 +226,12 @@ app.patch("/api/reports/:id/status", requireFirebase, requireAdmin, async (reque
 });
 
 app.use((error, _request, response, _next) => {
-  if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
-    response.status(400).json({ error: "La fotografía no puede superar los 5 MB." });
+  if (error instanceof multer.MulterError) {
+    const message =
+      error.code === "LIMIT_FILE_SIZE"
+        ? "La fotografía original no puede superar los 5 MB."
+        : "El formulario contiene demasiados archivos o datos.";
+    response.status(400).json({ error: message });
     return;
   }
   if (error.message && error.message.startsWith("La fotografía")) {

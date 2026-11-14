@@ -25,7 +25,9 @@ document.querySelectorAll(".nav-link").forEach((button) => {
 photoInput.addEventListener("change", () => {
   const file = photoInput.files[0];
   uploadTitle.textContent = file ? file.name : "Haz clic para adjuntar una imagen";
-  uploadHelp.textContent = file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB · Máximo 5 MB` : "JPG, PNG o WebP · Máximo 5 MB";
+  uploadHelp.textContent = file
+    ? `${(file.size / (1024 * 1024)).toFixed(2)} MB · Se optimiza al enviar`
+    : "JPG, PNG o WebP · Máximo 5 MB";
 });
 
 reportForm.addEventListener("submit", async (event) => {
@@ -36,7 +38,13 @@ reportForm.addEventListener("submit", async (event) => {
   submitButton.disabled = true;
   submitButton.innerHTML = "Enviando... <span aria-hidden=\"true\">↗</span>";
   try {
-    const response = await fetch("/api/reports", { method: "POST", body: new FormData(reportForm) });
+    const originalPhoto = photoInput.files[0];
+    if (originalPhoto.size > 5 * 1024 * 1024) throw new Error("La fotografía no puede superar los 5 MB.");
+    const { photo, thumbnail } = await preparePhoto(originalPhoto);
+    const formData = new FormData(reportForm);
+    formData.set("photo", photo, "reporte.jpg");
+    formData.set("thumbnail", thumbnail, "vista-previa.jpg");
+    const response = await fetch("/api/reports", { method: "POST", body: formData });
     const result = await readResponse(response);
     setMessage(formMessage, `${result.message} Folio: ${result.id}`, "success");
     reportForm.reset();
@@ -66,6 +74,48 @@ function setMessage(element, message, type) {
   element.textContent = message;
   element.classList.toggle("is-error", type === "error");
   element.classList.toggle("is-success", type === "success");
+}
+
+async function preparePhoto(file) {
+  let image;
+  try {
+    image = await createImageBitmap(file);
+    const photo = await compressImage(image, 1280, 600 * 1024);
+    const thumbnail = await compressImage(image, 240, 24 * 1024);
+    return { photo, thumbnail };
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("No se pudo optimizar")) throw error;
+    throw new Error("No se pudo leer la imagen. Elige un archivo JPG, PNG o WebP válido.");
+  } finally {
+    image?.close();
+  }
+}
+
+async function compressImage(image, maxWidth, maxBytes) {
+  let width = Math.min(image.width, maxWidth);
+  let height = Math.round(image.height * (width / image.width));
+  const qualities = [0.84, 0.76, 0.68, 0.6, 0.52, 0.45];
+
+  for (let resizeAttempt = 0; resizeAttempt < 8; resizeAttempt += 1) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("No se pudo optimizar la fotografía en este navegador.");
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    for (const quality of qualities) {
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+      if (blob && blob.size <= maxBytes) return blob;
+    }
+
+    width = Math.max(1, Math.floor(width * 0.75));
+    height = Math.max(1, Math.round(image.height * (width / image.width)));
+  }
+
+  throw new Error("No se pudo optimizar la fotografía. Elige una imagen diferente.");
 }
 
 function escapeHtml(value) {
