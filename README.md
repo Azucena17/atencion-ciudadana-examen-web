@@ -26,6 +26,17 @@ Las fotografías se optimizan en el navegador y se guardan como bytes junto con 
 
 Si Firebase aún no está configurado, la interfaz se mostrará, pero las operaciones de reportes responderán con un error explícito de configuración.
 
+## Publicar gratis en Render
+
+1. Crea una cuenta en [Render](https://render.com/) y conecta GitHub.
+2. Desde el dashboard, selecciona **New > Web Service** y el repositorio `Azucena17/atencion-ciudadana-examen-web`, rama `master`.
+3. Configura **Language: Node**, **Build Command: `npm install`**, **Start Command: `npm start`** y **Instance Type: Free**.
+4. Crea el servicio. En **Environment**, configura `FIREBASE_PROJECT_ID=subastagt`, `GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/service-account.json` y `ADMIN_API_KEY` con la clave larga del panel.
+5. En **Secret Files**, agrega un archivo llamado `service-account.json` y coloca ahí el contenido de la cuenta de servicio de Firebase. Nunca lo pongas en GitHub ni en variables no secretas.
+6. Guarda los cambios y espera a que termine el despliegue. Render proporcionará una URL pública `*.onrender.com`.
+
+Los servicios gratuitos de Render se duermen después de 15 minutos sin tráfico y tardan cerca de un minuto en iniciar al recibir otra visita. Usa datos de prueba; no publiques información personal real en una aplicación de examen. Los límites gratuitos de Render y Firestore pueden cambiar.
+
 ## Flujo y API
 
 - `POST /api/reports` recibe `multipart/form-data` (`name`, `category`, `location`, `description`, `photo` y `thumbnail`), valida los datos, guarda las imágenes y crea el reporte en `citizen_reports`.
