@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#123c35" />
+    <meta
+      name="description"
+      content="Registra reportes ciudadanos y consulta su seguimiento con la Municipalidad."
+    />
+    <title>Atención Ciudadana | Municipalidad</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Atención Ciudadana, inicio">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span class="brand-copy"><strong>Municipalidad</strong><small>Atención Ciudadana</small></span>
+      </a>
+      <nav class="main-nav" aria-label="Navegación principal">
+        <button class="nav-link is-active" data-view="citizen" type="button">Portal ciudadano</button>
+        <button class="nav-link" data-view="admin" type="button">Administración</button>
+      </nav>
+      <span class="header-tag"><span class="live-dot"></span> Servicio en línea</span>
+    </header>
+
+    <main>
+      <section class="view citizen-view is-visible" id="citizen-view">
+        <div class="hero">
+          <div class="hero-content">
+            <p class="eyebrow"><span class="eyebrow-line"></span> Juntos mejoramos nuestra comunidad</p>
+            <h1>Tu voz ayuda a<br /><em>transformar la ciudad.</em></h1>
+            <p class="hero-description">
+              Cuéntanos qué sucede en tu colonia. Nuestro equipo recibirá tu reporte y trabajará para darle seguimiento.
+            </p>
+            <div class="trust-row">
+              <span class="trust-icon" aria-hidden="true">✓</span>
+              <span>Reporte directo al equipo municipal</span>
+            </div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="sun"></div>
+            <div class="hill hill-back"></div>
+            <div class="hill hill-front"></div>
+            <div class="city-card">
+              <span class="city-pin">+</span>
+              <span><strong>Tu comunidad</strong><small>Empieza con un reporte</small></span>
+            </div>
+            <div class="hero-sparkle sparkle-one">✳</div>
+            <div class="hero-sparkle sparkle-two">✳</div>
+          </div>
+        </div>
+
+        <div class="form-layout">
+          <aside class="form-aside">
+            <p class="eyebrow">PORTAL CIUDADANO</p>
+            <h2>¿Qué necesita atención?</h2>
+            <p>Completa el formulario con los detalles del problema. La fotografía nos ayudará a entender mejor la situación.</p>
+            <div class="aside-note">
+              <span class="note-icon" aria-hidden="true">i</span>
+              <p>Los campos marcados con <b>*</b> son obligatorios. Tus datos se utilizarán únicamente para dar seguimiento al reporte.</p>
+            </div>
+            <div class="steps">
+              <div><span>01</span><p><strong>Cuéntanos</strong><small>Describe el problema</small></p></div>
+              <div><span>02</span><p><strong>Lo revisamos</strong><small>El equipo recibe tu reporte</small></p></div>
+              <div><span>03</span><p><strong>Damos seguimiento</strong><small>Trabajamos en una solución</small></p></div>
+            </div>
+          </aside>
+
+          <form class="report-form" id="report-form">
+            <div class="form-heading">
+              <div><p class="eyebrow">NUEVO REPORTE</p><h2>Formulario de atención</h2></div>
+              <span class="required-label">* Obligatorio</span>
+            </div>
+            <div class="form-grid">
+              <label class="field">
+                <span>Nombre completo <b>*</b></span>
+                <input name="name" autocomplete="name" maxlength="100" placeholder="Ej. María López" required />
+              </label>
+              <label class="field">
+                <span>Tipo de reporte <b>*</b></span>
+                <select name="category" required>
+                  <option value="" disabled selected>Selecciona una categoría</option>
+                  <option>Alumbrado público</option>
+                  <option>Agua y drenajes</option>
+                  <option>Calles y banquetas</option>
+                  <option>Recolección de basura</option>
+                  <option>Parques y áreas verdes</option>
+                  <option>Otro</option>
+                </select>
+              </label>
+              <label class="field field-wide">
+                <span>Ubicación del problema <b>*</b></span>
+                <input name="location" autocomplete="street-address" maxlength="160" placeholder="Colonia, calle y una referencia" required />
+              </label>
+              <label class="field field-wide">
+                <span>Descripción <b>*</b></span>
+                <textarea name="description" minlength="15" maxlength="2000" rows="4" placeholder="Describe qué sucede y desde cuándo..." required></textarea>
+                <small class="field-hint">Incluye detalles que puedan ayudar a localizar o resolver el problema.</small>
+              </label>
+              <label class="field field-wide">
+                <span>Fotografía relacionada <b>*</b></span>
+                <span class="upload-box" id="upload-box">
+                  <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required />
+                  <span class="upload-icon" aria-hidden="true">↑</span>
+                  <strong id="upload-title">Haz clic para adjuntar una imagen</strong>
+                  <small id="upload-help">JPG, PNG o WebP · Máximo 5 MB</small>
+                </span>
+              </label>
+            </div>
+            <div class="form-footer">
+              <p id="form-message" class="form-message" role="status" aria-live="polite"></p>
+              <button class="button button-primary" id="submit-button" type="submit">
+                Enviar reporte <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="view admin-view" id="admin-view" hidden>
+        <div class="admin-heading">
+          <div><p class="eyebrow"><span class="eyebrow-line"></span> GESTIÓN MUNICIPAL</p><h1>Panel de <em>administración.</em></h1>
+            <p>Consulta, revisa y actualiza el seguimiento de los reportes ciudadanos.</p></div>
+          <button class="button button-outline" id="refresh-button" type="button">↻ <span>Actualizar</span></button>
+        </div>
+        <div class="admin-toolbar">
+          <label class="search-field"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="Buscar por ubicación o descripción..." /></label>
+          <label class="filter-field"><span class="sr-only">Filtrar por estado</span>
+            <select id="status-filter"><option value="">Todos los estados</option><option>Recibida</option><option>En proceso</option><option>Resuelta</option></select>
+          </label>
+        </div>
+        <p id="admin-message" class="admin-message" role="status" aria-live="polite"></p>
+        <div id="report-list" class="report-list"></div>
+        <div id="empty-state" class="empty-state" hidden>
+          <span aria-hidden="true">◎</span><h2>Aún no hay reportes</h2><p>Los reportes enviados desde el portal ciudadano aparecerán aquí.</p>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer"><span>© <span id="current-year"></span> Municipalidad</span><span>Atención cercana, comunidad más fuerte.</span></footer>
+  </body>
+</html>
